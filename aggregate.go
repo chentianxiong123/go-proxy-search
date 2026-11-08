@@ -68,6 +68,17 @@ func (a *Aggregator) SearchWithEngine(ctx context.Context, query string, opts Op
 		return nil, fmt.Errorf("%w", ErrCaptcha)
 	}
 	if len(all) == 0 {
+		// 全引擎都是「无渲染器」→ 直接返回该错误（保留 errors.Is 链，宿主可识别）
+		allUnavailable := len(errs) > 0
+		for _, e := range errs {
+			if !strings.Contains(e, errBrowserUnavailable.Error()) {
+				allUnavailable = false
+				break
+			}
+		}
+		if allUnavailable {
+			return nil, errBrowserUnavailable
+		}
 		if len(errs) > 0 {
 			return nil, errors.New(strings.Join(errs, "; "))
 		}
@@ -76,12 +87,16 @@ func (a *Aggregator) SearchWithEngine(ctx context.Context, query string, opts Op
 	return all, nil
 }
 
-// searchEngine 单引擎搜索：渲染搜索页 → 解析 → 结果。
-// 用 opts.Renderer（或默认 Chrome），cookie 由 opts.CookieFn 提供。
+// searchEngine 单引擎搜索：WebView 渲染搜索页 → 解析 → 结果。
+// 用 opts.Renderer（或宿主 SetRenderer 注入的 WebView 渲染），cookie 由 opts.CookieFn 提供。
+// 无渲染器 → errBrowserUnavailable（宿主必须注入 WebView，不造 Chrome 轮子）。
 func (a *Aggregator) searchEngine(ctx context.Context, eng Engine, query string, opts Options) ([]Result, error) {
 	renderer := opts.Renderer
 	if renderer == nil {
 		renderer = a.renderer
+	}
+	if renderer == nil {
+		return nil, errBrowserUnavailable
 	}
 	htmlText, err := renderer(ctx, eng.SearchURL(query), opts.Timeout)
 	if err != nil {

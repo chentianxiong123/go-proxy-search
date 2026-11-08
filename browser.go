@@ -43,11 +43,14 @@ func BrowserEngines(query string, enabled []string) []BrowserEngine {
 }
 
 // BrowserSearch 浏览器渲染搜索（框架入口，对标 SearXNG）：
-// 依次渲染各引擎（Chrome headless，桌面）→ ParseRendered 解析 → 过滤正版站。
-// 首个出真结果的引擎够用（返回其结果 + 引擎名）。
-// 移动端无 Chrome → 调用方用 WebView 渲染（SetRenderer 注入），前端回传 HTML。
+// 依次渲染各引擎（宿主 WebView：Android 系统 WebView / 桌面 WebKitGTK）→
+// ParseRendered 解析 → 过滤正版站。首个出真结果的引擎够用。
+// 宿主必须 SetRenderer 注入 WebView 渲染函数（复用 mycast 已有 WebView 机制）。
 // enabled 引擎开关（空=全部）；timeout 单引擎超时。
 func (a *Aggregator) BrowserSearch(ctx context.Context, query string, enabled []string, timeout time.Duration) ([]Result, string, error) {
+	if a.renderer == nil {
+		return nil, "", errBrowserUnavailable
+	}
 	if timeout == 0 {
 		timeout = 18 * time.Second
 	}

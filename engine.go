@@ -2,8 +2,8 @@
 //
 // 核心思想：
 //   - 引擎抽象：每个搜索引擎一个 Engine 实现（bing/360/baidu），注册进 Registry。
-//   - WebView 渲染：搜索靠「渲染器」拿 HTML（桌面 Chrome headless / 移动 WebView），
-//     渲染器由调用方注入（RenderFunc），库不知道具体渲染环境。
+//   - WebView 渲染：搜索靠「宿主注入的 WebView 渲染」拿 HTML（跨平台：
+//     Android 系统 WebView / 桌面 WebKitGTK），库不造渲染轮子。
 //   - 无状态：Aggregator 不持 cookie/配置持久状态；行为（cookie/UA/超时/引擎开关）
 //     全由调用方通过 Options 传入。目标就是「搜索 → 拿结果」。
 //
@@ -75,37 +75,43 @@ type Options struct {
 	Timeout time.Duration
 	// Engines 启用的引擎（空=全部；否则按名过滤，如 ["baidu","so"]）。
 	Engines []string
-	// Renderer 渲染器（WebView 渲染搜索页拿 HTML）。空=用默认 Chrome headless。
-	// 移动端调用方传 WebView 渲染函数（前端回传 HTML），桌面传 nil（用 Chrome）。
+	// Renderer 渲染器（WebView 渲染搜索页拿 HTML）。
+	// 空=用 Aggregator 注入的 WebView 渲染（宿主 SetRenderer）；都没设则报错。
+	// 跨平台：Android 系统 WebView / 桌面 WebKitGTK（复用 mycast 已有 WebView 机制）。
 	Renderer RenderFunc
 	// MaxResults 聚合结果上限（空=默认 30）。
 	MaxResults int
 }
 
 // RenderFunc 渲染一个 URL 返回 HTML（WebView 渲染核心）。
-// 桌面：调用方传 Chrome headless 渲染（或留空用默认）。
-// 移动：调用方传「WebView 打开 URL → 回传 outerHTML」的函数。
+// 宿主注入（复用 mycast 已有的 WebView 机制，不造轮子）：
+//   - Android：系统 WebView 渲染引擎页 → JS 回传 outerHTML
+//   - 桌面：WebKitGTK（wails3 子 WebView 窗口）→ 回传 outerHTML
+//
+// 库不实现渲染（那是宿主 GUI 的事，mycast 已做），只接收宿主注入的函数。
 type RenderFunc func(ctx context.Context, rawURL string, timeout time.Duration) (string, error)
 
 // Aggregator 聚合搜索器（无状态：不持跨请求 cookie/配置）。
 // 对标 SearXNG 的 Search 聚合：跑所有引擎、URL 去重、过滤、限 N 条。
 type Aggregator struct {
 	registry *Registry
-	renderer RenderFunc // 默认渲染器（Chrome headless）
+	renderer RenderFunc // WebView 渲染函数（宿主注入，跨平台：Android WebView / WebKitGTK）
 }
 
 // New 建聚合搜索器（registry 空则默认三引擎）。
+// 渲染器默认 nil：宿主必须 SetRenderer 注入 WebView 渲染函数
+// （复用 mycast 已有的 WebView 机制），否则 Search 返回 errBrowserUnavailable。
 func New(registry *Registry) *Aggregator {
 	if registry == nil {
 		registry = NewRegistry()
 	}
 	return &Aggregator{
 		registry: registry,
-		renderer: RenderWithChrome, // 默认：桌面 Chrome headless（Blink=Android WebView 同源）
+		renderer: nil, // 无默认渲染器：WebView 渲染由宿主注入（不造 Chrome headless 轮子）
 	}
 }
 
-// SetRenderer 覆盖默认渲染器（移动端 WebView 回传）。
+// SetRenderer 注入 WebView 渲染函数（宿主：Android 系统 WebView / 桌面 WebKitGTK）。
 func (a *Aggregator) SetRenderer(r RenderFunc) {
 	if r != nil {
 		a.renderer = r
@@ -120,7 +126,7 @@ func (a *Aggregator) Search(ctx context.Context, query string, opts Options) ([]
 
 // 浏览器渲染错误。
 var (
-	errBrowserUnavailable = errors.New("浏览器不可用（Android 无 Chrome，前端走 WebView）")
+	errBrowserUnavailable = errors.New("WebView 渲染器未注入（宿主 SetRenderer 传 Android WebView / WebKitGTK 渲染函数）")
 	errBrowserNoResults   = errors.New("浏览器渲染未提取到结果")
 )
 
