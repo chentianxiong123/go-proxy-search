@@ -52,15 +52,18 @@ func walkNodes(n *xhtml.Node, fn func(*xhtml.Node)) {
 	}
 }
 
-// readBody 读响应体（限制 4MB 防超大）。
+// readBody 读响应体（限制 4MB 防超大，精确不超读）。
 func readBody(resp *http.Response) string {
+	const max = 4 << 20
 	buf := make([]byte, 0, 1<<20)
 	tmp := make([]byte, 64<<10)
-	for {
+	for len(buf) < max {
 		n, err := resp.Body.Read(tmp)
-		buf = append(buf, tmp[:n]...)
-		if len(buf) > 4<<20 {
-			break
+		if n > 0 {
+			if len(buf)+n > max {
+				n = max - len(buf) // 截到 4MB，不超读
+			}
+			buf = append(buf, tmp[:n]...)
 		}
 		if err != nil {
 			break
