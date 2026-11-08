@@ -130,6 +130,10 @@ var (
 	errBrowserNoResults   = errors.New("浏览器渲染未提取到结果")
 )
 
+// ErrNoRenderer 渲染器未注入：宿主必须 SetRenderer 注入 WebView 渲染函数，
+// 否则库无法搜（库无 GUI 不能创建 WebView）。公开导出，宿主可 errors.Is 识别。
+var ErrNoRenderer = errBrowserUnavailable
+
 // Result 一条搜索结果。
 type Result struct {
 	Engine  string `json:"engine"`           // bing / so / baidu

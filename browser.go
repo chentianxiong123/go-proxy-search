@@ -49,7 +49,7 @@ func BrowserEngines(query string, enabled []string) []BrowserEngine {
 // enabled 引擎开关（空=全部）；timeout 单引擎超时。
 func (a *Aggregator) BrowserSearch(ctx context.Context, query string, enabled []string, timeout time.Duration) ([]Result, string, error) {
 	if a.renderer == nil {
-		return nil, "", errBrowserUnavailable
+		return nil, "", ErrNoRenderer
 	}
 	if timeout == 0 {
 		timeout = 18 * time.Second

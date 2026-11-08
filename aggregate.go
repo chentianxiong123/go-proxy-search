@@ -71,13 +71,13 @@ func (a *Aggregator) SearchWithEngine(ctx context.Context, query string, opts Op
 		// 全引擎都是「无渲染器」→ 直接返回该错误（保留 errors.Is 链，宿主可识别）
 		allUnavailable := len(errs) > 0
 		for _, e := range errs {
-			if !strings.Contains(e, errBrowserUnavailable.Error()) {
+			if !strings.Contains(e, ErrNoRenderer.Error()) {
 				allUnavailable = false
 				break
 			}
 		}
 		if allUnavailable {
-			return nil, errBrowserUnavailable
+			return nil, ErrNoRenderer
 		}
 		if len(errs) > 0 {
 			return nil, errors.New(strings.Join(errs, "; "))
@@ -96,7 +96,7 @@ func (a *Aggregator) searchEngine(ctx context.Context, eng Engine, query string,
 		renderer = a.renderer
 	}
 	if renderer == nil {
-		return nil, errBrowserUnavailable
+		return nil, ErrNoRenderer
 	}
 	htmlText, err := renderer(ctx, eng.SearchURL(query), opts.Timeout)
 	if err != nil {
