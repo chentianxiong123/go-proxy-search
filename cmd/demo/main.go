@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	search "github.com/chentianxiong123/search-service"
+	search "github.com/chentianxiong123/go-proxy-search"
 )
 
 func main() {

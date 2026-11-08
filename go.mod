@@ -1,4 +1,4 @@
-module github.com/chentianxiong123/search-service
+module github.com/chentianxiong123/go-proxy-search
 
 go 1.26.5
 
